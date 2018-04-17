@@ -1,7 +1,10 @@
 package it.openreply.labcampat2018;
 
 import android.app.Activity;
+import android.graphics.Bitmap;
+import android.media.ImageReader;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 
 import com.google.android.things.pio.Gpio;
@@ -10,6 +13,9 @@ import com.google.android.things.pio.PeripheralManager;
 
 import java.io.IOException;
 import java.util.List;
+
+import it.openreply.labcampat2018.camera.CameraHandler;
+import it.openreply.labcampat2018.camera.ImagePreprocessor;
 
 /**
  * Skeleton of an Android Things activity.
@@ -38,6 +44,10 @@ public class MainActivity extends Activity {
     private static String AVOIDANCE_GPIO = "BCM27";
     private static final String LOG_TAG = "LABCAMP";
 
+    //Camera
+    private ImagePreprocessor mImagePreprocessor;
+    private CameraHandler mCameraHandler;
+    private boolean isProcessing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +80,7 @@ public class MainActivity extends Activity {
                             Log.d(LOG_TAG, "is near");
                             if (ledGpio!=null)
                                 ledGpio.setValue(true);
+                            loadPhoto();
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -82,6 +93,7 @@ public class MainActivity extends Activity {
         }catch (IOException e) {
             e.printStackTrace();
         }
+        initCamera();
     }
 
 
@@ -101,6 +113,39 @@ public class MainActivity extends Activity {
                 }
             }
         }).start();
+    }
+
+    /**
+     * Initialize the camera that will be used to capture images.
+     */
+    private void initCamera() {
+        // ADD CAMERA SUPPORT
+        mImagePreprocessor = new ImagePreprocessor();
+        mCameraHandler = CameraHandler.getInstance();
+        Handler threadLooper = new Handler(getMainLooper());
+
+        mCameraHandler.initializeCamera(this, threadLooper,
+                new ImageReader.OnImageAvailableListener() {
+                    @Override
+                    public void onImageAvailable(ImageReader imageReader) {
+                        isProcessing = false;
+                        Bitmap bitmap = mImagePreprocessor.preprocessImage(imageReader.acquireNextImage());
+                        onPhotoReady(bitmap);
+                    }
+                });
+//        CameraHandler.dumpFormatInfo(this);
+    }
+
+    private void loadPhoto() {
+        // ADD CAMERA SUPPORT
+        if (!isProcessing) {
+            isProcessing = true;
+            mCameraHandler.takePicture();
+        }
+    }
+
+    private void onPhotoReady(Bitmap bitmap) {
+
     }
 
     @Override
