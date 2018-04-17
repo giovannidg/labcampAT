@@ -5,8 +5,11 @@ import android.graphics.Bitmap;
 import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
+import android.support.annotation.NonNull;
+import android.text.TextUtils;
 import android.util.Log;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.GpioCallback;
 import com.google.android.things.pio.PeripheralManager;
@@ -20,6 +23,8 @@ import java.util.List;
 import it.openreply.labcampat2018.camera.CameraHandler;
 import it.openreply.labcampat2018.camera.ImageHelper;
 import it.openreply.labcampat2018.camera.ImagePreprocessor;
+import it.openreply.labcampat2018.model.Candidate;
+import it.openreply.labcampat2018.model.Results;
 
 /**
  * Skeleton of an Android Things activity.
@@ -53,9 +58,10 @@ public class MainActivity extends Activity {
     private CameraHandler mCameraHandler;
     private boolean isProcessing;
     //Plate recognition
-    static final String ANDROID_DATA_DIR =
-            "/data/data/it.openreply.labcampat2018";
+    static final String ANDROID_DATA_DIR = "/data/data/it.openreply.labcampat2018";
     final String openAlprConfFile = ANDROID_DATA_DIR + File.separatorChar + "runtime_data" + File.separatorChar + "openalpr.conf";
+    //Plate number  filter
+    private String regexTarga = "[a-zA-Z]{2}[0-9]{3,4}[a-zA-Z]{2}";
 
 
     @Override
@@ -83,11 +89,11 @@ public class MainActivity extends Activity {
                     try {
                         if (gpio.getValue()) {
                             Log.d(LOG_TAG, "far far away");
-                            if (ledGpio!=null)
+                            if (ledGpio != null)
                                 ledGpio.setValue(false);
                         } else {
                             Log.d(LOG_TAG, "is near");
-                            if (ledGpio!=null)
+                            if (ledGpio != null)
                                 ledGpio.setValue(true);
                             loadPhoto();
                         }
@@ -99,7 +105,7 @@ public class MainActivity extends Activity {
                     return true;
                 }
             });
-        }catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
         initCamera();
@@ -158,11 +164,32 @@ public class MainActivity extends Activity {
         //RECOGNIZE NUMBER PLATE
         File file = new File(ImageHelper.IMAGE_PATH, ImageHelper.IMAGE_NAME);
         if (file != null) {
-            OpenALPR alpr = OpenALPR.Factory.create(MainActivity.this,    ANDROID_DATA_DIR);
+            OpenALPR alpr = OpenALPR.Factory.create(MainActivity.this, ANDROID_DATA_DIR);
             String result = alpr.recognizeWithCountryRegionNConfig("eu", "it", file.getAbsolutePath(), openAlprConfFile, 10);
             Log.e("RESULT", "result: " + result);
+            if (!TextUtils.isEmpty(result)) {
+                parseResultAndGetPlate(result);
+            }
         }
     }
+
+    @NonNull
+    private String parseResultAndGetPlate(String result) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Results results = mapper.readValue(result, Results.class);
+            for (Candidate candidate : results.getResults().get(0).getCandidates()) {
+                if (candidate.getPlate().matches(regexTarga)) {
+                    Log.d(LOG_TAG, "plate: " + candidate.getPlate());
+                    return candidate.getPlate();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
 
     @Override
     protected void onDestroy() {

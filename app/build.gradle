@@ -31,4 +31,7 @@ dependencies {
     compileOnly 'com.google.android.things:androidthings:0.7-devpreview'
     implementation 'com.android.support:support-annotations:27.1.0'
     implementation 'com.github.SandroMachado:openalpr-android:1.1.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.9.5'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.9.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.5'
 }
