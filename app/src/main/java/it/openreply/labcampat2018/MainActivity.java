@@ -11,10 +11,14 @@ import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.GpioCallback;
 import com.google.android.things.pio.PeripheralManager;
 
+import org.openalpr.OpenALPR;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
 import it.openreply.labcampat2018.camera.CameraHandler;
+import it.openreply.labcampat2018.camera.ImageHelper;
 import it.openreply.labcampat2018.camera.ImagePreprocessor;
 
 /**
@@ -48,6 +52,11 @@ public class MainActivity extends Activity {
     private ImagePreprocessor mImagePreprocessor;
     private CameraHandler mCameraHandler;
     private boolean isProcessing;
+    //Plate recognition
+    static final String ANDROID_DATA_DIR =
+            "/data/data/it.openreply.labcampat2018";
+    final String openAlprConfFile = ANDROID_DATA_DIR + File.separatorChar + "runtime_data" + File.separatorChar + "openalpr.conf";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,7 +154,14 @@ public class MainActivity extends Activity {
     }
 
     private void onPhotoReady(Bitmap bitmap) {
-
+        // SHOW BITMAP WITH A SCREEN
+        //RECOGNIZE NUMBER PLATE
+        File file = new File(ImageHelper.IMAGE_PATH, ImageHelper.IMAGE_NAME);
+        if (file != null) {
+            OpenALPR alpr = OpenALPR.Factory.create(MainActivity.this,    ANDROID_DATA_DIR);
+            String result = alpr.recognizeWithCountryRegionNConfig("eu", "it", file.getAbsolutePath(), openAlprConfFile, 10);
+            Log.e("RESULT", "result: " + result);
+        }
     }
 
     @Override
