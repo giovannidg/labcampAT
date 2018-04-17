@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.google.android.things.pio.Gpio;
+import com.google.android.things.pio.GpioCallback;
 import com.google.android.things.pio.PeripheralManager;
 
 import java.io.IOException;
@@ -33,6 +34,10 @@ public class MainActivity extends Activity {
 
     private Gpio ledGpio;
     private static String LED_GPIO = "BCM26";
+    private Gpio avoidanceSensor;
+    private static String AVOIDANCE_GPIO = "BCM27";
+    private static final String LOG_TAG = "LABCAMP";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,13 +46,39 @@ public class MainActivity extends Activity {
 
         PeripheralManager manager = PeripheralManager.getInstance();
         List<String> gpios = manager.getGpioList();
-        Log.d("LAB", gpios.toString());
+        Log.d(LOG_TAG, gpios.toString());
 
         try {
             ledGpio = manager.openGpio(LED_GPIO);
             ledGpio.setDirection(Gpio.DIRECTION_OUT_INITIALLY_LOW);
             //Start blinking for test
-            blinkLED();
+//            blinkLED();
+
+            avoidanceSensor = manager.openGpio(AVOIDANCE_GPIO);
+            avoidanceSensor.setDirection(Gpio.DIRECTION_IN);
+            avoidanceSensor.setActiveType(Gpio.ACTIVE_HIGH);
+            avoidanceSensor.setEdgeTriggerType(Gpio.EDGE_BOTH);
+            avoidanceSensor.registerGpioCallback(new GpioCallback() {
+                @Override
+                public boolean onGpioEdge(Gpio gpio) {
+                    try {
+                        if (gpio.getValue()) {
+                            Log.d(LOG_TAG, "far far away");
+                            if (ledGpio!=null)
+                                ledGpio.setValue(false);
+                        } else {
+                            Log.d(LOG_TAG, "is near");
+                            if (ledGpio!=null)
+                                ledGpio.setValue(true);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    // Continue listening for more interrupts
+                    return true;
+                }
+            });
         }catch (IOException e) {
             e.printStackTrace();
         }
@@ -79,6 +110,15 @@ public class MainActivity extends Activity {
             try {
                 ledGpio.close();
                 ledGpio = null;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        //Close the obstacle avoidance GPIO
+        if (avoidanceSensor != null) {
+            try {
+                avoidanceSensor.close();
+                avoidanceSensor = null;
             } catch (IOException e) {
                 e.printStackTrace();
             }
