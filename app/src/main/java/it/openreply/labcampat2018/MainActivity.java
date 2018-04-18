@@ -13,6 +13,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.GpioCallback;
 import com.google.android.things.pio.PeripheralManager;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 import org.openalpr.OpenALPR;
 
@@ -24,6 +29,8 @@ import it.openreply.labcampat2018.camera.CameraHandler;
 import it.openreply.labcampat2018.camera.ImageHelper;
 import it.openreply.labcampat2018.camera.ImagePreprocessor;
 import it.openreply.labcampat2018.model.Candidate;
+import it.openreply.labcampat2018.model.DatabaseFields;
+import it.openreply.labcampat2018.model.ParkingSpot;
 import it.openreply.labcampat2018.model.Results;
 
 /**
@@ -63,6 +70,10 @@ public class MainActivity extends Activity {
     //Plate number  filter
     private String regexTarga = "[a-zA-Z]{2}[0-9]{3,4}[a-zA-Z]{2}";
 
+    //Firebase
+    private FirebaseDatabase database;
+    private DatabaseReference mParkingSpotReference;
+    private ValueEventListener mEventValueListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +122,32 @@ public class MainActivity extends Activity {
         initCamera();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        database = FirebaseDatabase.getInstance();
+        mParkingSpotReference = database.getReference(getParkingSpotID());
+        mEventValueListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                // This method is called once with the initial value and again
+                // whenever data at this location is updated.
+                ParkingSpot value = dataSnapshot.getValue(ParkingSpot.class);
+                Log.d(LOG_TAG, value.isFree() + " - " + value.getPlateNumber() + " - " + value.getTimestamp());
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.e(LOG_TAG, "uh uh, DB error");
+            }
+        };
+        mParkingSpotReference.addValueEventListener(mEventValueListener);
+    }
+
+    private @DatabaseFields.ParkingSpotID
+    String getParkingSpotID() {
+        return DatabaseFields.SPOT1;
+    }
 
     /**
      * blink the led 5 times
@@ -167,10 +204,25 @@ public class MainActivity extends Activity {
             OpenALPR alpr = OpenALPR.Factory.create(MainActivity.this, ANDROID_DATA_DIR);
             String result = alpr.recognizeWithCountryRegionNConfig("eu", "it", file.getAbsolutePath(), openAlprConfFile, 10);
             Log.e("RESULT", "result: " + result);
+            String plate = "";
             if (!TextUtils.isEmpty(result)) {
-                parseResultAndGetPlate(result);
+                plate = parseResultAndGetPlate(result);
+            }
+
+            if (!TextUtils.isEmpty(plate)) {//a number plate was recognized
+                ParkingSpot spot = new ParkingSpot(false, plate, System.currentTimeMillis());
+                mParkingSpotReference.setValue(spot);
+            } else {
+                ParkingSpot spot = new ParkingSpot(true, "NO PLATE", System.currentTimeMillis());
+                mParkingSpotReference.setValue(spot);
             }
         }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        mParkingSpotReference.removeEventListener(mEventValueListener);
     }
 
     @NonNull
